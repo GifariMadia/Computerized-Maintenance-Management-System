@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cmms-postgres
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Jakarta}
+      PGTZ: ${TZ:-Asia/Jakarta}
+      POSTGRES_DB: ${POSTGRES_DB:-cmms_db}
+      POSTGRES_USER: ${POSTGRES_USER:-cmms_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_strong_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/migrations:/migrations:ro
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmms_app} -d ${POSTGRES_DB:-cmms_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cmms-network
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: cmms-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      TZ: ${TZ:-Asia/Jakarta}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cmms_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_minio_password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - cmms-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cmms-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Jakarta}
+      APP_ENV: ${APP_ENV:-development}
+      BACKEND_PORT: ${BACKEND_PORT:-8080}
+      DATABASE_URL: ${DATABASE_URL:-postgres://cmms_app:change_me_strong_password@postgres:5432/cmms_db?sslmode=disable&TimeZone=Asia/Jakarta}
+      JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret_min_32_chars}
+      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-3}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-60}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - cmms-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-CMMS PT Bintang Toedjoe Site Pulogadung}
+    container_name: cmms-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      TZ: ${TZ:-Asia/Jakarta}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - cmms-network
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  cmms-network:
+    driver: bridge

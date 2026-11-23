@@ -1,0 +1,10 @@
+# Development override: run database + MinIO in Docker while running Go & Next.js natively
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres minio
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+  minio:
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
