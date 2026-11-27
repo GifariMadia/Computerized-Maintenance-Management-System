@@ -12,10 +12,14 @@ import (
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/config"
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/database"
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/router"
+	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/storage"
 )
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("configuration error: %v", err)
+	}
 
 	// Enforce Asia/Jakarta (WIB) per URS 2.1
 	if loc, err := time.LoadLocation(cfg.Timezone); err == nil {
@@ -23,19 +27,38 @@ func main() {
 	}
 
 	ctx := context.Background()
-	// Note: Track 1 (Gifari) will register pgx driver (`_ "github.com/jackc/pgx/v5/stdlib"`)
-	// and pass "pgx" here when wiring live PostgreSQL repositories.
-	store, err := database.New(ctx, "", "")
+
+	store, err := database.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("database init failed: %v", err)
 	}
 	defer func() {
 		_ = store.Close()
 	}()
+	log.Println("PostgreSQL connected via pgx/v5/stdlib")
+
+	objStorage, err := storage.NewMinIO(storage.Config{
+		Endpoint:  cfg.MinIOEndpoint,
+		PublicURL: cfg.MinIOPublicURL,
+		AccessKey: cfg.MinIOAccessKey,
+		SecretKey: cfg.MinIOSecretKey,
+		Bucket:    cfg.MinIOBucket,
+		UseSSL:    cfg.MinIOUseSSL,
+	})
+	if err != nil {
+		log.Fatalf("object storage init failed: %v", err)
+	}
+	if objStorage != nil {
+		if err := objStorage.EnsureBucket(ctx); err != nil {
+			log.Fatalf("object storage bucket init failed: %v", err)
+		}
+		log.Printf("Object storage connected (endpoint=%s, bucket=%s, public_url=%s)",
+			cfg.MinIOEndpoint, cfg.MinIOBucket, cfg.MinIOPublicURL)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           router.New(cfg, store),
+		Handler:           router.New(cfg, store, objStorage),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

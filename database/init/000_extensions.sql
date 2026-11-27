@@ -5,4 +5,8 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-ALTER DATABASE CURRENT SET timezone TO 'Asia/Jakarta';
+DO $$
+BEGIN
+    EXECUTE format('ALTER DATABASE %I SET timezone TO ''Asia/Jakarta''', current_database());
+END
+$$;

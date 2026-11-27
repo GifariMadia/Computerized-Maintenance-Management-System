@@ -11,9 +11,9 @@ Dokumen ini menjadi acuan teknis bersama untuk pengembangan **Computerized Maint
 | **OS Server & Dev** | Linux (Ubuntu Server / Alpine Container) | Stabil, ringan untuk spesifikasi awal **4 vCPU / 8 GB RAM / SSD**, mendukung Docker & cron backup |
 | **Containerization** | Docker & Docker Compose | Menjamin keseragaman environment antar laptop tim (IT, Teknik Industri, Teknik Elektro) & server |
 | **Frontend** | Next.js (App Router) + TypeScript + Tailwind CSS | Sesuai acuan URS 2.2; responsif di desktop, tablet, dan smartphone; target load ≤ 3 detik |
-| **Backend** | Go 1.24 (Modular Monolith, REST API JSON) | Sesuai acuan URS 2.2; performa tinggi, footprint memori kecil, isolasi folder per modul |
+| **Backend** | Go 1.26 (`pgx/v5/stdlib` + `minio-go/v7`, REST API JSON) | Sesuai acuan URS 2.2; performa tinggi, footprint memori kecil, isolasi folder per modul |
 | **Database** | PostgreSQL 16 (Single Operational DB) | Sesuai URS 2.2 ("Ketiga modul menggunakan satu basis data operasional utama"), ACID, JSONB, trigger immutable |
-| **Document Storage** | MinIO (S3-compatible) | Menyimpan foto kondisi aset, manual, datasheet, gambar teknis yang tertaut ke `Asset ID` / `WO No` |
+| **Document Storage** | Silo (`pgsty/silo`, drop-in S3/MinIO-compatible) | Menyimpan foto kondisi aset, manual, datasheet, gambar teknis (`cmms-documents`); memisahkan `MINIO_ENDPOINT` (internal Docker) dan `MINIO_PUBLIC_URL` (browser/LAN) |
 | **Zona Waktu** | `Asia/Jakarta` (WIB) | Wajib seragam di OS container, PostgreSQL (`PGTZ`), Go backend, dan formatting frontend (URS 2.1) |
 
 ---

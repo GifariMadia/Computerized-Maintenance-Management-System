@@ -7,9 +7,9 @@
 ## Tech Stack (Linux Target Environment)
 
 - **Frontend**: Next.js 15 (App Router) + TypeScript + Tailwind CSS
-- **Backend**: Go 1.24 (Modular Monolith, REST API JSON)
+- **Backend**: Go 1.26 (`pgx/v5/stdlib`, `minio-go/v7`, Modular Monolith, REST API JSON)
 - **Database**: PostgreSQL 16 (Single Operational DB, `TZ=Asia/Jakarta` / WIB)
-- **Document Storage**: MinIO (S3-compatible untuk foto aset, manual, datasheet, gambar teknis)
+- **Document Storage**: Silo (`pgsty/silo`, drop-in MinIO/S3-compatible untuk foto aset, manual, datasheet, gambar teknis)
 - **Container & Ops**: Docker, Docker Compose, Linux shell scripts (automated backup/restore)
 
 ---

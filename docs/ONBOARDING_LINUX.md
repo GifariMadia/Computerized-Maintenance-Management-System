@@ -36,24 +36,24 @@ Pilih branch sesuai peran Anda:
 ## 3. Menjalankan Aplikasi via Docker Compose
 
 ```bash
-# 1. Buat file .env dari template
+# 1. Buat file .env dari template (WAJIB ubah POSTGRES_PASSWORD, JWT_SECRET >= 32 char, MINIO_ROOT_PASSWORD)
 make env
 
-# 2. Jalankan PostgreSQL, MinIO, Backend Go, dan Frontend Next.js
+# 2. Jalankan PostgreSQL, MinIO (Silo S3), minio-init (auto-bucket), Backend Go, dan Frontend Next.js
 make up
 
 # 3. Terapkan seluruh migrasi tabel CMMS (001 - 004)
 make migrate
 
-# 4. Cek status container
+# 4. Cek status container (pastikan semua berstatus healthy)
 make ps
 ```
 
-Akses layanan lokal:
-- **Frontend Next.js**: `http://localhost:3000`
-- **Backend Go API Health**: `http://localhost:8080/api/v1/health`
-- **MinIO Console (Storage Dokumen)**: `http://localhost:9001`
-- **PostgreSQL**: `localhost:5432` (db: `cmms_db`, user: `cmms_app`)
+Akses layanan lokal (default PostgreSQL & MinIO hanya di-bind ke `127.0.0.1` demi keamanan):
+- **Frontend Next.js**: `http://localhost:3000` (health: `/api/health`)
+- **Backend Go API Health**: `http://localhost:8080/api/v1/health` (mengembalikan HTTP `200` hanya jika DB + Storage sehat, atau `503` jika terputus)
+- **MinIO / Silo Console (Storage Dokumen)**: `http://127.0.0.1:9001` (bucket `cmms-documents` dibuat otomatis oleh `minio-init`)
+- **PostgreSQL**: `127.0.0.1:5432` (db: `cmms_db`, user: `cmms_app`)
 
 ---
 

@@ -8,9 +8,9 @@ services:
       PGTZ: ${TZ:-Asia/Jakarta}
       POSTGRES_DB: ${POSTGRES_DB:-cmms_db}
       POSTGRES_USER: ${POSTGRES_USER:-cmms_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_strong_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_ADDR:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
@@ -24,20 +24,47 @@ services:
     networks:
       - cmms-network
 
+  # Note: Official minio/minio images were removed from Docker Hub & gated on Quay in Sep 2026.
+  # pgsty/silo is a maintained, drop-in MinIO-compatible S3 server with curl & mc included.
   minio:
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    image: pgsty/silo:latest
     container_name: cmms-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       TZ: ${TZ:-Asia/Jakarta}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cmms_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_minio_password}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required in .env}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${MINIO_BIND_ADDR:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - cmms-network
+
+  minio-init:
+    image: pgsty/silo:latest
+    container_name: cmms-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "mc alias set local http://minio:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\" &&
+       mc mb --ignore-existing local/$${MINIO_BUCKET} &&
+       echo \"Bucket $${MINIO_BUCKET} is ready\""
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-cmms-documents}
+    restart: "no"
     networks:
       - cmms-network
 
@@ -50,18 +77,34 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       TZ: ${TZ:-Asia/Jakarta}
       APP_ENV: ${APP_ENV:-development}
       BACKEND_PORT: ${BACKEND_PORT:-8080}
-      DATABASE_URL: ${DATABASE_URL:-postgres://cmms_app:change_me_strong_password@postgres:5432/cmms_db?sslmode=disable&TimeZone=Asia/Jakarta}
-      JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret_min_32_chars}
+      DATABASE_URL: postgres://${POSTGRES_USER:-cmms_app}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}@postgres:5432/${POSTGRES_DB:-cmms_db}?sslmode=disable&TimeZone=Asia/Jakarta
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in .env}
       AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-3}
       AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
       SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-60}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-cmms-documents}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_BIND_ADDR:-0.0.0.0}:${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - cmms-network
 
@@ -75,12 +118,21 @@ services:
     container_name: cmms-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       TZ: ${TZ:-Asia/Jakarta}
+      HOSTNAME: 0.0.0.0
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8080/api/v1}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_BIND_ADDR:-0.0.0.0}:${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - cmms-network
 

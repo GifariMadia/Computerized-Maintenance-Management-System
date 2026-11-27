@@ -20,8 +20,8 @@ logs: ## Lihat log seluruh container secara realtime
 ps: ## Cek status container
 	docker compose ps
 
-db-up: env ## Jalankan hanya PostgreSQL dan MinIO (untuk dev lokal Go & Next.js)
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres minio
+db-up: env ## Jalankan hanya PostgreSQL, MinIO, dan inisialisasi bucket (untuk dev lokal Go & Next.js)
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres minio minio-init
 
 migrate: ## Jalankan semua file migrasi SQL secara berurutan ke PostgreSQL container
 	@set -a && source .env && set +a && \

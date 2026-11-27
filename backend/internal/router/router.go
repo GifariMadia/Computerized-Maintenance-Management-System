@@ -10,13 +10,14 @@ import (
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/modules/core"
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/modules/dashboard"
 	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/modules/maintenance"
+	"github.com/GifariMadia/Computerized-Maintenance-Management-System/backend/internal/storage"
 )
 
-func New(cfg config.Config, store *database.Store) http.Handler {
+func New(cfg config.Config, store *database.Store, objStorage *storage.Client) http.Handler {
 	mux := http.NewServeMux()
 
-	// Track 1 (Gifari — IT): Core Auth, RBAC, Audit Trail, Health
-	core.NewHandler(store).RegisterRoutes(mux)
+	// Track 1 (Gifari — IT): Core Auth, RBAC, Audit Trail, Health, Object Storage
+	core.NewHandler(store, objStorage).RegisterRoutes(mux)
 
 	// Track 2 (Rainer — Teknik Industri): Modul 1 Dashboard, KPI, Cost & Reporting
 	dashboard.NewHandler(store).RegisterRoutes(mux)

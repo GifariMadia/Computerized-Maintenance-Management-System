@@ -1,7 +1,19 @@
 import type { ApiEnvelope } from "./types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+/**
+ * Resolve API base URL cleanly for both Next.js SSR (inside Docker network)
+ * and Browser/LAN clients.
+ */
+export function getApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return (
+      process.env.INTERNAL_API_URL ??
+      process.env.NEXT_PUBLIC_API_URL ??
+      "http://localhost:8080/api/v1"
+    );
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+}
 
 export async function apiFetch<T>(
   path: string,
@@ -13,7 +25,10 @@ export async function apiFetch<T>(
     headers.set("Idempotency-Key", options.idempotencyKey);
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = getApiBaseUrl().replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${baseUrl}${normalizedPath}`, {
     ...options,
     headers,
     cache: "no-store",
@@ -27,9 +42,11 @@ export async function apiFetch<T>(
  */
 export function formatWIB(iso?: string | null): string {
   if (!iso) return "Belum tersedia";
-  return new Intl.DateTimeFormat("id-ID", {
-    timeZone: "Asia/Jakarta",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso)) + " WIB";
+  return (
+    new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso)) + " WIB"
+  );
 }

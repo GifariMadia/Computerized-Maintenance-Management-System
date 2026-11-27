@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.env.*
+backups/
+docs/
+infra/
+frontend/node_modules/
+frontend/.next/
+backend/bin/
+*.log
